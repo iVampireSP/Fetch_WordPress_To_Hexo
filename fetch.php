@@ -15,16 +15,29 @@ $site_list = json_decode(file_get_contents('sites.json'), true);
 echo '本次要抓取' . count($site_list) . "个站点。\n";
 foreach ($site_list as $site_list) {
     echo "正在抓取: $site_list ...\n";
-    $json = json_decode(file_get_contents("https://$site_list/wp-json/wp/v2/posts?per_page=20&page=1"), true);
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://$site_list/wp-json/wp/v2/posts?per_page=100&page=1");
+    // 不要http header 加快效率
+    curl_setopt($ch, CURLOPT_HEADER, 0);
+    // https请求 不验证证书和hosts
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    $res = curl_exec($ch); //已经获取到内容,没有输出到页面上.
+    curl_close($ch);
+
+    $json = json_decode($res, true);
     foreach ($json as $array) {
-        $title = str_replace("|", "-", $array['title']['rendered']);
+        $title = $array['title']['rendered'];
         $date = str_replace("T", " ", $array['date']);
         $content = $array['content']['rendered'];
         $link = $array['link'];
-        $filename = md5($site_list) . '-' . md5($title) . '.md';
+        $filename = md5($site_list) . '-' . md5($site_list . '-' . $title) . '.md';
         $write_content = <<<EOF
 ---
-title: $title 由 $site_list
+title: "$title 由 $site_list"
 date: $date
 tags: $site_list
 ---
@@ -43,6 +56,7 @@ $filename \n
 EOF;
         file_put_contents("$hexo_path/source/_posts/$filename", $write_content);
     }
+
 }
 
 /* 全部完成后开始部署 */
